@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>诗意贪吃蛇</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%233A5F4A'/%3E%3Cpath d='M9 20c3-7 10-9 14-5' fill='none' stroke='%23F3F1E7' stroke-width='3.2' stroke-linecap='round'/%3E%3Ccircle cx='23' cy='15' r='2.4' fill='%23A6473C'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://miaoda.feishu.cn">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600;700&display=swap">
+<style>
+  :root{
+    --paper:#F2F1EA;
+    --board:#FCFBF4;
+    --ink:#26302B;
+    --ink-soft:#6A736C;
+    --line:#DCDCD1;
+    --accent:#A6473C;
+    --grid:#E7E6DA;
+    --snake:#3A5F4A;
+    --snake-head:#2E4C3B;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html, body{ min-height:100%; }
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:34px 24px 44px;
+    display:flex;
+    justify-content:center;
+    transition:background-color .55s ease, color .55s ease;
+  }
+
+  .shell{ width:100%; max-width:1010px; }
+
+  /* ===== 顶栏 ===== */
+  .masthead{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:18px 24px;
+    flex-wrap:wrap;
+    padding-bottom:14px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:24px;
+  }
+
+  .brand{ display:flex; align-items:center; gap:12px; min-width:0; }
+
+  .brand svg{ display:block; flex:0 0 auto; }
+
+  .brand-text{ min-width:0; }
+
+  .brand h1{
+    margin:0;
+    font-size:25px;
+    line-height:1.15;
+    font-weight:700;
+    letter-spacing:.05em;
+  }
+
+  .tagline{
+    margin:5px 0 0;
+    font-size:12.5px;
+    line-height:1.4;
+    color:var(--ink-soft);
+  }
+
+  .themes{ display:flex; gap:6px; flex-wrap:wrap; }
+
+  .chip{
+    height:32px;
+    padding:0 15px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:transparent;
+    color:var(--ink-soft);
+    font-family:inherit;
+    font-size:13px;
+    letter-spacing:.06em;
+    cursor:pointer;
+    transition:background-color .3s ease, color .3s ease, border-color .3s ease;
+  }
+
+  .chip:hover{ border-color:var(--accent); color:var(--ink); }
+
+  .chip[aria-pressed="true"]{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:var(--paper);
+    font-weight:600;
+  }
+
+  .chip:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* ===== 主区两栏 ===== */
+  .workspace{
+    display:grid;
+    grid-template-columns:minmax(0, 460px) minmax(0, 1fr);
+    gap:24px;
+    align-items:start;
+  }
+
+  .stage-wrap{ display:flex; flex-direction:column; min-width:0; }
+
+  .stage{
+    position:relative;
+    border-radius:16px;
+    background:var(--board);
+    border:1px solid var(--line);
+    box-shadow:0 1px 0 rgba(20,24,21,.04), 0 18px 34px -24px rgba(20,24,21,.55);
+    overflow:hidden;
+    aspect-ratio:1 / 1;
+    transition:background-color .55s ease, border-color .55s ease;
+    touch-action:manipulation;
+  }
+
+  canvas#board{
+    display:block;
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    border-radius:15px;
+    touch-action:none;
+  }
+
+  /* 棋盘覆盖层：准备 / 暂停 / 结束 */
+  .overlay{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    transition:opacity .22s ease;
+  }
+
+  .overlay.is-hidden{ opacity:0; pointer-events:none; }
+
+  .overlay:not(.is-hidden) .panel{
+    animation:panelIn .24s cubic-bezier(.22,.61,.36,1);
+  }
+
+  @keyframes panelIn{
+    from{ transform:translateY(7px) scale(.985); }
+    to{ transform:none; }
+  }
+
+  .panel{
+    text-align:center;
+    min-width:214px;
+    max-width:290px;
+    padding:20px 24px 18px;
+    background:var(--board);
+    border:1px solid var(--line);
+    border-radius:14px;
+    box-shadow:0 16px 30px -22px rgba(20,24,21,.7);
+  }
+
+  .panel h2{
+    margin:0 0 8px;
+    font-size:19px;
+    font-weight:700;
+    letter-spacing:.04em;
+  }
+
+  .panel p{
+    margin:0;
+    font-size:13px;
+    line-height:1.75;
+    color:var(--ink-soft);
+  }
+
+  .panel .panel-score{
+    margin-top:10px;
+    font-size:13px;
+    color:var(--ink);
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ===== 按钮 ===== */
+  .actions{ display:flex; gap:10px; margin-top:16px; }
+
+  .btn{
+    flex:1 1 0;
+    min-width:0;
+    height:44px;
+    border-radius:10px;
+    border:1px solid transparent;
+    font-family:inherit;
+    font-size:14.5px;
+    font-weight:600;
+    letter-spacing:.06em;
+    cursor:pointer;
+    transition:background-color .3s ease, border-color .3s ease, color .3s ease, transform .08s ease;
+  }
+
+  .btn--primary{ background:var(--ink); color:var(--paper); }
+  .btn--primary:hover{ background:var(--accent); color:var(--paper); }
+  .btn--primary:active{ transform:translateY(1px); }
+
+  .btn--ghost{ background:transparent; border-color:var(--line); color:var(--ink); }
+  .btn--ghost:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn--ghost:active{ transform:translateY(1px); }
+
+  .btn:disabled{
+    background:var(--line);
+    border-color:var(--line);
+    color:var(--ink-soft);
+    cursor:default;
+    transform:none;
+  }
+
+  .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  .hint{
+    margin:13px 0 0;
+    text-align:center;
+    font-size:12.5px;
+    line-height:1.6;
+    color:var(--ink-soft);
+  }
+
+  /* ===== 速度档 ===== */
+  .speed{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:11px;
+  }
+
+  .speed-label{
+    font-size:12.5px;
+    letter-spacing:.14em;
+    color:var(--ink-soft);
+  }
+
+  .speed-chips{ display:flex; gap:6px; }
+
+  .chip--sm{
+    height:28px;
+    padding:0 14px;
+    font-size:12.5px;
+  }
+
+  /* ===== 右栏 ===== */
+  .side{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+
+  .card{
+    background:var(--board);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:15px 18px 17px;
+    transition:background-color .55s ease, border-color .55s ease;
+  }
+
+  .card-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--line);
+  }
+
+  .card-head h2{
+    margin:0;
+    font-size:14.5px;
+    font-weight:600;
+    letter-spacing:.14em;
+  }
+
+  .count{
+    font-size:12px;
+    color:var(--ink-soft);
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+  }
+
+  .lines{
+    margin:12px 0 0;
+    padding:0;
+    list-style:none;
+    font-family:"Noto Serif SC","Songti SC",Georgia,serif;
+    font-size:15.5px;
+    line-height:2;
+    letter-spacing:.02em;
+    color:var(--ink);
+  }
+
+  .lines li{
+    padding:1px 0;
+    border-bottom:1px dashed transparent;
+  }
+
+  .lines li:last-child{ color:var(--ink); }
+
+  .strip{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:12px;
+    align-content:flex-start;
+  }
+
+  .tile{
+    width:56px;
+    height:56px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    display:block;
+  }
+
+  .empty{
+    margin:12px 0 0;
+    font-size:12.5px;
+    line-height:1.8;
+    color:var(--ink-soft);
+  }
+
+  .card .empty.is-hidden,
+  .lines.is-hidden,
+  .strip.is-hidden{ display:none; }
+
+  /* ===== 展卷（结束） ===== */
+  .scroll-view{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    background:rgba(14,18,22,.52);
+    -webkit-backdrop-filter:blur(3px);
+    backdrop-filter:blur(3px);
+    z-index:20;
+  }
+
+  .scroll-view[hidden]{ display:none; }
+
+  .scroll-paper{
+    width:min(760px, 100%);
+    max-height:88vh;
+    overflow-y:auto;
+    background:var(--board);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:22px 26px 24px;
+    box-shadow:0 30px 70px -30px rgba(0,0,0,.6);
+    animation:scrollIn .3s cubic-bezier(.22,.61,.36,1);
+  }
+
+  @keyframes scrollIn{
+    from{ transform:translateY(16px) scale(.99); }
+    to{ transform:none; }
+  }
+
+  .scroll-paper figure{ margin:0; }
+
+  .scroll-paper img{
+    display:block;
+    width:100%;
+    height:auto;
+    border-radius:10px;
+    border:1px solid var(--line);
+  }
+
+  .poem-final{ text-align:center; font-family:"Noto Serif SC","Songti SC",Georgia,serif; }
+
+  .poem-final h2{
+    margin:24px 0 6px;
+    font-size:23px;
+    font-weight:700;
+    letter-spacing:.1em;
+  }
+
+  .final-sub{
+    margin:0;
+    font-size:12px;
+    letter-spacing:.14em;
+    color:var(--ink-soft);
+  }
+
+  .final-lines{
+    margin:18px auto 0;
+    max-width:34em;
+    font-size:16px;
+    line-height:2.15;
+    letter-spacing:.03em;
+    color:var(--ink);
+  }
+
+  .final-sign{
+    margin:20px 0 0;
+    font-size:12.5px;
+    line-height:1.8;
+    color:var(--ink-soft);
+  }
+
+  .scroll-actions{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    margin-top:20px;
+  }
+
+  .scroll-actions .btn{ flex:0 1 190px; }
+
+  @media (max-width: 880px){
+    body{ padding:22px 16px 34px; }
+    .workspace{ grid-template-columns:1fr; gap:18px; }
+    .stage{ max-width:100%; }
+    .brand h1{ font-size:21px; }
+    .scroll-paper{ padding:16px 16px 20px; }
+    .scroll-actions{ flex-direction:column; }
+    .scroll-actions .btn{ flex:1 1 auto; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    body{ transition:none; }
+    .stage, .card{ transition:none; }
+    .overlay:not(.is-hidden) .panel{ animation:none; }
+    .scroll-paper{ animation:none; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+
+  <header class="masthead">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="9" fill="#3A5F4A"/>
+        <path d="M9 20c3-7 10-9 14-5" fill="none" stroke="#F3F1E7" stroke-width="3.2" stroke-linecap="round"/>
+        <circle cx="23" cy="15" r="2.4" fill="#A6473C"/>
+      </svg>
+      <div class="brand-text">
+        <h1>诗意贪吃蛇</h1>
+        <p class="tagline">吃一个字，得一行诗、一笔画</p>
+      </div>
+    </div>
+    <div class="themes" id="themes" role="group" aria-label="主题">
+      <button class="chip" type="button" data-theme="tang" aria-pressed="true">唐诗</button>
+      <button class="chip" type="button" data-theme="fairy" aria-pressed="false">童话</button>
+      <button class="chip" type="button" data-theme="sci" aria-pressed="false">科幻</button>
+    </div>
+  </header>
+
+  <div class="workspace" id="workspace">
+    <section class="stage-wrap">
+      <div class="stage" id="stage">
+        <canvas id="board" tabindex="0" aria-label="贪吃蛇棋盘"></canvas>
+        <div class="overlay" id="overlay">
+          <div class="panel">
+            <h2 id="ovTitle">准备开始</h2>
+            <p id="ovText">按方向键开始，吃掉棋盘上的字</p>
+            <p class="panel-score" id="ovScore"></p>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn--primary" id="btnStart" type="button">开始游戏</button>
+        <button class="btn btn--ghost" id="btnRestart" type="button">重新开始</button>
+      </div>
+      <div class="speed">
+        <span class="speed-label" id="speedLabel">速度</span>
+        <div class="speed-chips" id="speed" role="group" aria-labelledby="speedLabel">
+          <button class="chip chip--sm" type="button" data-speed="slow" aria-pressed="false">慢</button>
+          <button class="chip chip--sm" type="button" data-speed="normal" aria-pressed="true">中</button>
+          <button class="chip chip--sm" type="button" data-speed="fast" aria-pressed="false">快</button>
+        </div>
+      </div>
+      <p class="hint">方向键控制移动，空格暂停</p>
+    </section>
+
+    <aside class="side">
+      <section class="card">
+        <div class="card-head">
+          <h2>诗稿</h2>
+          <span class="count" id="poemCount">本局 0 句 · 最高 0</span>
+        </div>
+        <ol class="lines is-hidden" id="lines"></ol>
+        <p class="empty" id="poemEmpty">还没有字进诗里。吃掉棋盘上的字，它会出现在这里。</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>画轴</h2>
+          <span class="count" id="artCount">0 笔</span>
+        </div>
+        <div class="strip is-hidden" id="strip"></div>
+        <p class="empty" id="artEmpty">每吃一个字，这里落一笔。整局画完，会拼成一张长卷。</p>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<div class="scroll-view" id="scrollView" hidden>
+  <div class="scroll-paper" role="dialog" aria-modal="true" aria-label="本局作品">
+    <figure>
+      <img id="finalArt" alt="本局长卷" loading="eager">
+    </figure>
+    <div class="poem-final">
+      <h2 id="finalTitle"></h2>
+      <p class="final-sub" id="finalSub"></p>
+      <p class="final-lines" id="finalLines"></p>
+      <p class="final-sign" id="finalSign"></p>
+    </div>
+    <div class="scroll-actions">
+      <button class="btn btn--primary" id="btnAgain" type="button">再写一局</button>
+      <button class="btn btn--ghost" id="btnSwitch" type="button">换个主题</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ===== 词库：每个字都带着两行现成的诗句 ===== */
+  var THEMES = {
+    tang: {
+      key: "tang", name: "唐诗", art: "ink",
+      scroll: "assets/tangshi-scroll.webp",
+      palette: {
+        paper: "#F2F1EA", board: "#FCFBF4", ink: "#26302B", line: "#DCDCD1",
+        accent: "#A6473C", grid: "#E7E6DA", snake: "#3A5F4A", snakeHead: "#2E4C3B"
+      },
+      words: [
+        ["月", "月落在水上，水也学会了发亮", "半轮月照见一条没有人的路"],
+        ["舟", "一叶小舟把整条河慢慢推开", "舟过去了，水纹还在原地想它"],
+        ["山", "远处的山不是山，是层层没说完的话", "山把云抱在怀里，云没有下来"],
+        ["雁", "雁阵把天空写成一行草书", "雁衔走了最后一片秋天"],
+        ["酒", "温过的酒把夜色泡软了", "酒杯里盛着一小潭月亮"],
+        ["霜", "霜在瓦上写第一笔，写得很轻", "霜把早晨磨成薄薄的白"],
+        ["亭", "亭子空着，等一个不来的黄昏", "亭有四个角，各挂着一角云"],
+        ["竹", "竹影在墙上练字，一笔比一笔瘦", "竹子把风声剪成细丝"],
+        ["溪", "溪水抄了一遍山，抄得比山还绿", "溪把石头的声音一层层说开"]
+      ]
+    },
+    fairy: {
+      key: "fairy", name: "童话", art: "paper",
+      scroll: "assets/tonghua-scroll.webp",
+      palette: {
+        paper: "#FBF3EB", board: "#FFFBF3", ink: "#4A3A33", line: "#E7DACD",
+        accent: "#B4545F", grid: "#EEDFD0", snake: "#7A5233", snakeHead: "#654229"
+      },
+      words: [
+        ["糖", "糖纸一折，就折出一点彩虹", "兜里揣着一颗糖，天就没那么冷"],
+        ["蝶", "蝴蝶停在半句没说完的童话上", "一只蝴蝶把整座花园搬到空中"],
+        ["灯", "小灯笼挂起来，夜就有了把手", "提灯走过小路，影子先到家"],
+        ["云", "云被棉花糖喂大了，飘不动了", "一朵云偷偷学会了胖"],
+        ["兔", "小兔在草坡上练习跳月亮", "兔子的耳朵上挂了两颗露水"],
+        ["星", "星星掉进井里，井就许了一个愿", "把星星别在领口，走路都会发光"],
+        ["花", "花开得比故事快，故事只好等它", "花落下来，落成一页小书签"],
+        ["雪", "雪把整座森林调成了静音", "雪落在屋顶上，屋子就更暖了"]
+      ]
+    },
+    sci: {
+      key: "sci", name: "科幻", art: "orbit",
+      scroll: "assets/kehuan-scroll.webp",
+      palette: {
+        paper: "#EDF1F5", board: "#F7FAFC", ink: "#1B2A38", line: "#D3DEE6",
+        accent: "#1E7B8C", grid: "#E1ECF1", snake: "#1B6470", snakeHead: "#12505A"
+      },
+      words: [
+        ["光", "一道光把整条航线擦干净了", "光在舱壁上慢慢退潮"],
+        ["舱", "休眠舱醒来时，记得一场没发生过的雪", "舱门合上，宇宙安静得像一个房间"],
+        ["环", "光环转过半圈，季节就换了一次", "环带上的尘，比纪元更慢"],
+        ["屏", "屏幕上飘过一行没人读的天气", "屏把远处的星色改成了温柔的绿"],
+        ["尘", "星尘落在舷窗上，像一场很轻的雪", "尘埃在轨道里排成一首长诗"],
+        ["机", "机器学会了犹豫，比计算更像人", "机把最后一句话存成一支歌"],
+        ["轨", "轨道是一条写不完的虚线", "沿着轨道走，也走不出自己的影子"],
+        ["焰", "推进焰舔了一下夜，就退了", "尾焰留在宇宙里，像一句被拉长的话"]
+      ]
+    }
+  };
+
+  /* ===== 魔法字：改写氛围，也改写画面风格 ===== */
+  var MAGIC = {
+    "夜": { atmo: "night", lines: ["夜降下来，颜色被重新排了一遍", "灯一暗，画面就长出另一层"] },
+    "风": { atmo: "wind",  lines: ["风穿过画面，线条被吹得活了一点", "风把画掀开一角，露出后面的天气"] },
+    "梦": { atmo: "dream", lines: ["梦进来的时候，颜色开始不受管束", "一切都变软了，像隔着睡意看东西"] },
+    "雨": { atmo: "rain",  lines: ["雨落下来，所有轮廓都被洗淡了", "雨替画面补上了一层潮气"] },
+    "雾": { atmo: "fog",   lines: ["雾把远处折起来，只留下近处", "雾让每一条线都学会了后退"] },
+    "晴": { atmo: "day",   lines: ["天晴了，颜色慢慢回到原来的地方", "晴光一落，画面就重新上了色"] }
+  };
+  var MAGIC_CHARS = ["夜", "风", "梦", "雨", "雾", "晴"];
+  var ATMO_LABEL = { day: "白昼", night: "夜里", wind: "风里", dream: "梦里", rain: "雨里", fog: "雾里" };
+
+  /* ===== 颜色工具 ===== */
+  function hex2rgb(h){
+    h = h.replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  function rgb2hex(c){
+    return "#" + c.map(function(v){
+      var n = Math.max(0, Math.min(255, Math.round(v)));
+      return (n < 16 ? "0" : "") + n.toString(16);
+    }).join("");
+  }
+  function mix(a, b, t){
+    var A = hex2rgb(a), B = hex2rgb(b);
+    return rgb2hex([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t]);
+  }
+  function rgba(hex, a){
+    var c = hex2rgb(hex);
+    return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a + ")";
+  }
+
+  /* 氛围调色：同一个主题，换一层光 */
+  function atmoPalette(base, atmo){
+    var p = {
+      paper: base.paper, board: base.board, ink: base.ink, line: base.line,
+      grid: base.grid, accent: base.accent, snake: base.snake, snakeHead: base.snakeHead,
+      inkSoft: mix(base.ink, base.paper, 0.42)
+    };
+
+    if (atmo === "night"){
+      p.paper = mix(base.paper, "#0E131A", 0.90);
+      p.board = mix(base.board, "#111823", 0.88);
+      p.grid = mix(base.grid, "#1C2632", 0.78);
+      p.ink = mix(base.ink, "#EFE7D7", 0.90);
+      p.line = mix(base.line, "#2A3540", 0.80);
+      p.accent = mix(base.accent, "#F2DFC0", 0.30);
+      p.snake = mix(base.snake, "#E6E1D3", 0.34);
+      p.snakeHead = mix(base.snakeHead, "#F6F1E4", 0.30);
+    } else if (atmo === "dream"){
+      p.paper = mix(base.paper, "#EADDF0", 0.60);
+      p.board = mix(base.board, "#F8F1FA", 0.66);
+      p.grid = mix(base.grid, "#E6D9EB", 0.60);
+      p.ink = mix(base.ink, "#4A3357", 0.35);
+      p.line = mix(base.line, "#DCCDE4", 0.55);
+      p.accent = mix(base.accent, "#8A63AB", 0.60);
+      p.snake = mix(base.snake, "#6C4E8E", 0.60);
+      p.snakeHead = mix(base.snakeHead, "#5B417C", 0.60);
+    } else if (atmo === "rain"){
+      p.paper = mix(base.paper, "#BFCCD1", 0.50);
+      p.board = mix(base.board, "#DCE6E8", 0.55);
+      p.grid = mix(base.grid, "#C8D5D8", 0.55);
+      p.ink = mix(base.ink, "#22333B", 0.25);
+      p.line = mix(base.line, "#B9C7CB", 0.55);
+      p.accent = mix(base.accent, "#4F6E79", 0.65);
+      p.snake = mix(base.snake, "#33565F", 0.55);
+      p.snakeHead = mix(base.snakeHead, "#274650", 0.55);
+    } else if (atmo === "wind"){
+      p.paper = mix(base.paper, "#D9E4DD", 0.42);
+      p.board = mix(base.board, "#F0F5F0", 0.45);
+      p.accent = mix(base.accent, "#5F8F79", 0.50);
+      p.snake = mix(base.snake, "#3E7259", 0.35);
+    } else if (atmo === "fog"){
+      p.paper = mix(base.paper, "#DDDFD8", 0.58);
+      p.board = mix(base.board, "#EFEFE8", 0.60);
+      p.grid = mix(base.grid, "#D8DAD2", 0.50);
+      p.accent = mix(base.accent, "#7C8A88", 0.50);
+      p.snake = mix(base.snake, "#4A6B5F", 0.40);
+    }
+
+    p.inkSoft = mix(p.ink, p.paper, 0.42);
+    return p;
+  }
+
+  /* ===== 随机 ===== */
+  function hashStr(s){
+    var h = 2166136261;
+    for (var i = 0; i < s.length; i++){
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* ===== DOM ===== */
+  var canvas = document.getElementById("board");
+  var ctx = canvas.getContext("2d");
+  var stage = document.getElementById("stage");
+  var overlay = document.getElementById("overlay");
+  var ovTitle = document.getElementById("ovTitle");
+  var ovText = document.getElementById("ovText");
+  var ovScore = document.getElementById("ovScore");
+  var linesEl = document.getElementById("lines");
+  var poemEmpty = document.getElementById("poemEmpty");
+  var poemCount = document.getElementById("poemCount");
+  var stripEl = document.getElementById("strip");
+  var artEmpty = document.getElementById("artEmpty");
+  var artCount = document.getElementById("artCount");
+  var btnStart = document.getElementById("btnStart");
+  var btnRestart = document.getElementById("btnRestart");
+  var chips = Array.prototype.slice.call(document.querySelectorAll(".themes .chip"));
+  var speedBtns = Array.prototype.slice.call(document.querySelectorAll("[data-speed]"));
+  var scrollView = document.getElementById("scrollView");
+  var scrollPaper = scrollView.querySelector(".scroll-paper");
+  var finalArt = document.getElementById("finalArt");
+  var finalTitle = document.getElementById("finalTitle");
+  var finalSub = document.getElementById("finalSub");
+  var finalLines = document.getElementById("finalLines");
+  var finalSign = document.getElementById("finalSign");
+  var btnAgain = document.getElementById("btnAgain");
+  var btnSwitch = document.getElementById("btnSwitch");
+
+  /* ===== 常量与状态 ===== */
+  var COLS = 16, ROWS = 16, CELL = 36, BOARD = COLS * CELL;
+  var BASE_STEP = 132, MIN_STEP = 82;
+  /* 三档速度：基础步长与加速下限一起走 */
+  var SPEEDS = {
+    slow:   { base: 196, min: 124 },
+    normal: { base: BASE_STEP, min: MIN_STEP },
+    fast:   { base: 96,  min: 62 }
+  };
+  var speedKey = "normal";
+  var speedSet = SPEEDS[speedKey];
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var themeKey = "tang";
+  var theme = THEMES[themeKey];
+  var pal = atmoPalette(theme.palette, "day");
+  var atmo = "day";
+
+  var snake = [];
+  var dir = { x: 1, y: 0 };
+  var queue = [];
+  var tokens = [];
+  var effects = [];
+  var score = 0;
+  var stepMs = BASE_STEP;
+  function stepForScore(s){
+    return Math.max(speedSet.min, speedSet.base - s * 2.4);
+  }
+  var state = "ready";
+  var crash = null;
+  var crashKind = "";
+  var poemLines = [];
+  var eatenWords = [];
+  var rafId = null;
+  var acc = 0;
+  var lastT = 0;
+  var scrollTimer = null;
+
+  function bestKey(){ return "poem-best-" + themeKey; }
+  function loadBest(){
+    try { return parseInt(localStorage.getItem(bestKey()) || "0", 10) || 0; }
+    catch (e) { return 0; }
+  }
+  function saveBest(v){
+    try { localStorage.setItem(bestKey(), String(v)); } catch (e) {}
+  }
+  var best = loadBest();
+
+  /* ===== 画布 ===== */
+  function fitCanvas(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = Math.round(BOARD * dpr);
+    canvas.height = Math.round(BOARD * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function roundRect(x, y, w, h, r){
+    if (ctx.roundRect){
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawGrid(){
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth = 1;
+    var i, p;
+    for (i = 1; i < COLS; i++){
+      p = i * CELL + 0.5;
+      ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, BOARD); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(BOARD, p); ctx.stroke();
+    }
+  }
+
+  function drawTokens(){
+    for (var i = 0; i < tokens.length; i++){
+      var w = tokens[i];
+      var x = w.x * CELL, y = w.y * CELL, inset = 3.5;
+
+      ctx.fillStyle = mix(pal.board, pal.accent, w.magic ? 0.28 : 0.14);
+      roundRect(x + inset, y + inset, CELL - inset * 2, CELL - inset * 2, 8);
+      ctx.fill();
+
+      ctx.strokeStyle = mix(pal.accent, pal.board, w.magic ? 0.42 : 0.72);
+      ctx.lineWidth = w.magic ? 1.4 : 1;
+      roundRect(x + inset, y + inset, CELL - inset * 2, CELL - inset * 2, 8);
+      ctx.stroke();
+
+      ctx.fillStyle = mix(pal.accent, pal.ink, w.magic ? 0.35 : 0.15);
+      ctx.font = "600 " + Math.round(CELL * 0.52) + 'px "Noto Serif SC","Songti SC",serif';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(w.ch, x + CELL / 2, y + CELL / 2 + 1);
+    }
+  }
+
+  function drawSnake(){
+    var n = snake.length, i, seg, ratio, alpha, inset = 1.8, radius = CELL * 0.28;
+
+    for (i = n - 1; i >= 0; i--){
+      seg = snake[i];
+      ratio = n > 1 ? i / (n - 1) : 0;
+      alpha = 1 - 0.30 * ratio;
+      ctx.fillStyle = i === 0 ? pal.snakeHead : rgba(pal.snake, Number(alpha.toFixed(3)));
+      roundRect(seg.x * CELL + inset, seg.y * CELL + inset, CELL - inset * 2, CELL - inset * 2, radius);
+      ctx.fill();
+    }
+
+    var head = snake[0];
+    var hx = head.x * CELL + CELL / 2;
+    var hy = head.y * CELL + CELL / 2;
+    var dx = dir.x, dy = dir.y;
+    if (n > 1){
+      dx = Math.sign(head.x - snake[1].x);
+      dy = Math.sign(head.y - snake[1].y);
+    }
+    if (dx === 0 && dy === 0){ dx = dir.x; dy = dir.y; }
+
+    var px = -dy, py = dx;
+    var fwd = CELL * 0.16, off = CELL * 0.18, er = CELL * 0.075;
+    ctx.fillStyle = pal.paper;
+    ctx.beginPath(); ctx.arc(hx + dx * fwd + px * off, hy + dy * fwd + py * off, er, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(hx + dx * fwd - px * off, hy + dy * fwd - py * off, er, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawEffects(t){
+    for (var i = effects.length - 1; i >= 0; i--){
+      var e = effects[i];
+      var age = (t - e.t0) / 460;
+      if (age >= 1){ effects.splice(i, 1); continue; }
+      ctx.strokeStyle = rgba(e.color, (1 - age).toFixed(3));
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(e.x * CELL + CELL / 2, e.y * CELL + CELL / 2, CELL * (0.3 + 0.62 * age), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  function drawCrash(){
+    if (!crash) return;
+    ctx.strokeStyle = pal.accent;
+    ctx.lineWidth = 2;
+    roundRect(crash.x * CELL + 3, crash.y * CELL + 3, CELL - 6, CELL - 6, CELL * 0.24);
+    ctx.stroke();
+  }
+
+  function draw(){
+    var t = performance.now();
+    ctx.fillStyle = pal.board;
+    ctx.fillRect(0, 0, BOARD, BOARD);
+    drawGrid();
+    drawTokens();
+    drawEffects(t);
+    drawCrash();
+    if (snake.length) drawSnake();
+  }
+
+  /* ===== 小画：每个字落一笔 ===== */
+  function stampChar(g, ch){
+    if (!ch) return;
+    g.fillStyle = rgba(mix(pal.accent, pal.ink, 0.55), "0.95");
+    g.font = '600 17px "Noto Serif SC","Songti SC",serif';
+    g.textAlign = "left";
+    g.textBaseline = "alphabetic";
+    g.fillText(ch, 7, 86);
+  }
+
+  function paintInk(g, rnd, ch){
+    var S = 96, i, k, variant = Math.floor(rnd() * 3);
+
+    if (variant === 0){
+      /* 远山 */
+      for (i = 2; i >= 0; i--){
+        var peak = 16 + i * 17 + rnd() * 12;
+        var mid = 10 + rnd() * 60;
+        g.beginPath();
+        g.moveTo(-8, S);
+        g.lineTo(-8, peak + 18);
+        g.quadraticCurveTo(mid, peak - 20 - i * 4, S + 8, peak + 14);
+        g.lineTo(S + 8, S);
+        g.closePath();
+        g.fillStyle = rgba(pal.ink, (0.18 + (2 - i) * 0.15).toFixed(2));
+        g.fill();
+      }
+      g.strokeStyle = rgba(pal.ink, "0.62");
+      g.lineWidth = 1.9;
+      for (k = 0; k < 3; k++){
+        var bx = 42 + k * 13 + rnd() * 6, by = 16 + rnd() * 14;
+        g.beginPath();
+        g.moveTo(bx - 5, by);
+        g.quadraticCurveTo(bx, by - 5, bx + 5, by);
+        g.stroke();
+      }
+    } else if (variant === 1){
+      /* 水与舟 */
+      g.strokeStyle = rgba(pal.ink, "0.44");
+      g.lineWidth = 1.6;
+      for (k = 0; k < 4; k++){
+        var yy = 44 + k * 10 + rnd() * 3;
+        g.beginPath();
+        g.moveTo(4 + rnd() * 22, yy);
+        g.lineTo(54 + rnd() * 34, yy);
+        g.stroke();
+      }
+      var boat = 18 + rnd() * 22;
+      g.strokeStyle = rgba(pal.ink, "0.80");
+      g.lineWidth = 2.6;
+      g.beginPath();
+      g.moveTo(boat, 44);
+      g.quadraticCurveTo(boat + 16, 56, boat + 34, 44);
+      g.stroke();
+      g.beginPath();
+      g.arc(boat + 30 + rnd() * 10, 26 + rnd() * 8, 5.5, 0, Math.PI * 2);
+      g.fillStyle = rgba(pal.accent, "0.88");
+      g.fill();
+    } else {
+      /* 月与枝 */
+      var mx = 54 + rnd() * 22, my = 20 + rnd() * 10;
+      g.beginPath(); g.arc(mx, my, 11, 0, Math.PI * 2);
+      g.fillStyle = rgba(pal.accent, "0.26"); g.fill();
+      g.strokeStyle = rgba(pal.accent, "0.66");
+      g.lineWidth = 1.6;
+      g.beginPath(); g.arc(mx, my, 11, 0, Math.PI * 2); g.stroke();
+
+      g.strokeStyle = rgba(pal.ink, "0.70");
+      g.lineWidth = 2.4;
+      g.beginPath();
+      g.moveTo(4, 88);
+      g.quadraticCurveTo(24, 68, 44, 30 + rnd() * 12);
+      g.stroke();
+      g.lineWidth = 1.8;
+      g.strokeStyle = rgba(pal.ink, "0.52");
+      for (k = 0; k < 3; k++){
+        var lx = 12 + k * 10, ly = 80 - k * 15;
+        g.beginPath();
+        g.moveTo(lx, ly);
+        g.quadraticCurveTo(lx + 9, ly - 7, lx + 15, ly - 3);
+        g.stroke();
+      }
+    }
+    stampChar(g, ch);
+  }
+
+  function paintPaper(g, rnd, ch){
+    var S = 96, i, k, variant = Math.floor(rnd() * 3);
+
+    if (variant !== 1){
+      for (i = 2; i >= 0; i--){
+        var h = 22 + i * 15 + rnd() * 10;
+        g.beginPath();
+        g.moveTo(-8, S);
+        g.quadraticCurveTo(16 + rnd() * 36, S - h - 20, 48 + rnd() * 26, S - h);
+        g.lineTo(S + 8, S - h * 0.42);
+        g.lineTo(S + 8, S);
+        g.closePath();
+        g.fillStyle = rgba(pal.accent, (0.14 + (2 - i) * 0.13).toFixed(2));
+        g.fill();
+      }
+    }
+
+    if (variant === 0){
+      /* 小屋与灯 */
+      var hx = 10 + rnd() * 24, hy = 54 + rnd() * 8;
+      g.fillStyle = rgba(pal.ink, "0.55");
+      g.fillRect(hx, hy, 17, 13);
+      g.beginPath();
+      g.moveTo(hx - 4, hy);
+      g.lineTo(hx + 8.5, hy - 10);
+      g.lineTo(hx + 21, hy);
+      g.closePath();
+      g.fill();
+      g.beginPath(); g.arc(hx + 8.5, hy - 15, 2.6, 0, Math.PI * 2);
+      g.fillStyle = rgba(pal.accent, "0.92"); g.fill();
+    } else if (variant === 1){
+      /* 热气球 */
+      var cx = 50 + rnd() * 22, cy = 24 + rnd() * 12;
+      g.beginPath(); g.arc(cx, cy, 11, 0, Math.PI * 2);
+      g.fillStyle = rgba(pal.accent, "0.40"); g.fill();
+      g.strokeStyle = rgba(pal.accent, "0.85");
+      g.lineWidth = 1.9;
+      g.beginPath(); g.arc(cx, cy, 11, 0, Math.PI * 2); g.stroke();
+      g.beginPath();
+      g.moveTo(cx - 5, cy + 8);
+      g.lineTo(cx, cy + 14);
+      g.lineTo(cx + 5, cy + 8);
+      g.strokeStyle = rgba(pal.ink, "0.42");
+      g.stroke();
+      g.fillStyle = rgba(pal.ink, "0.55");
+      g.fillRect(cx - 4, cy + 14, 8, 6);
+    } else {
+      /* 一棵小树 */
+      var tx = 32 + rnd() * 26;
+      g.fillStyle = rgba(pal.ink, "0.52");
+      g.fillRect(tx - 1.4, 56, 3, 20);
+      g.beginPath(); g.arc(tx, 50, 9, 0, Math.PI * 2);
+      g.fillStyle = rgba(pal.accent, "0.42"); g.fill();
+    }
+
+    g.fillStyle = rgba(pal.accent, "0.85");
+    for (k = 0; k < 2; k++){
+      g.beginPath();
+      g.arc(10 + rnd() * 74, 8 + rnd() * 18, 2.2, 0, Math.PI * 2);
+      g.fill();
+    }
+    stampChar(g, ch);
+  }
+
+  function paintOrbit(g, rnd, ch){
+    var S = 96, i, k, variant = Math.floor(rnd() * 3);
+
+    if (variant === 0){
+      var cx = 40 + rnd() * 22, cy = 34 + rnd() * 18;
+      var rings = 2 + Math.floor(rnd() * 2);
+      g.fillStyle = rgba(pal.ink, "0.55");
+      for (k = 0; k < 14; k++) g.fillRect(rnd() * S, rnd() * S, 2.2, 2.2);
+      g.strokeStyle = rgba(pal.ink, "0.42");
+      g.lineWidth = 1.6;
+      for (i = 1; i <= rings; i++){
+        g.beginPath();
+        g.ellipse(cx, cy, 10 + i * 9, 3 + i * 5, 0.2 + rnd() * 0.6, 0, Math.PI * 2);
+        g.stroke();
+      }
+      g.beginPath(); g.arc(cx, cy, 5.2, 0, Math.PI * 2);
+      g.fillStyle = rgba(pal.accent, "0.92"); g.fill();
+      g.strokeStyle = rgba(pal.accent, "0.70");
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(0, 76 + rnd() * 8);
+      g.quadraticCurveTo(S / 2, 52 + rnd() * 10, S, 74 + rnd() * 8);
+      g.stroke();
+    } else if (variant === 1){
+      /* 地弧与光 */
+      g.fillStyle = rgba(pal.ink, "0.55");
+      for (k = 0; k < 12; k++) g.fillRect(rnd() * S, rnd() * 56, 2.2, 2.2);
+      g.beginPath();
+      g.arc(30 + rnd() * 36, 128, 64 + rnd() * 14, Math.PI * 1.05, Math.PI * 1.95);
+      g.fillStyle = rgba(pal.ink, "0.18");
+      g.fill();
+      g.strokeStyle = rgba(pal.accent, "0.85");
+      g.lineWidth = 2.2;
+      g.beginPath();
+      g.arc(30 + 0, 128, 64, Math.PI * 1.05, Math.PI * 1.95);
+      g.stroke();
+      g.beginPath(); g.arc(64 + rnd() * 16, 20 + rnd() * 10, 3.4, 0, Math.PI * 2);
+      g.fillStyle = rgba(pal.accent, "0.9"); g.fill();
+    } else {
+      /* 星座线 */
+      var px = [18 + rnd() * 10, 46 + rnd() * 12, 74 + rnd() * 8];
+      var py = [28 + rnd() * 12, 48 + rnd() * 14, 22 + rnd() * 12];
+      g.strokeStyle = rgba(pal.ink, "0.48");
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.moveTo(px[0], py[0]);
+      g.lineTo(px[1], py[1]);
+      g.lineTo(px[2], py[2]);
+      g.stroke();
+      for (k = 0; k < 3; k++){
+        g.beginPath(); g.arc(px[k], py[k], k === 1 ? 3.6 : 2.4, 0, Math.PI * 2);
+        g.fillStyle = k === 1 ? rgba(pal.accent, "0.92") : rgba(pal.ink, "0.55");
+        g.fill();
+      }
+      g.strokeStyle = rgba(pal.accent, "0.55");
+      g.lineWidth = 1.8;
+      g.beginPath(); g.moveTo(0, 84); g.lineTo(S, 70 + rnd() * 20); g.stroke();
+    }
+    stampChar(g, ch);
+  }
+
+  function makeTile(ch, seed){
+    var cv = document.createElement("canvas");
+    cv.width = 96;
+    cv.height = 96;
+    cv.className = "tile";
+    var g = cv.getContext("2d");
+    g.fillStyle = mix(pal.board, pal.ink, 0.07);
+    g.fillRect(0, 0, 96, 96);
+    var rnd = mulberry32(seed);
+    if (theme.art === "ink") paintInk(g, rnd, ch);
+    else if (theme.art === "paper") paintPaper(g, rnd, ch);
+    else paintOrbit(g, rnd, ch);
+    return cv;
+  }
+
+  /* ===== 界面文案 ===== */
+  function updateCounts(){
+    var n = poemLines.length;
+    poemCount.textContent = "本局 " + n + " 句 · 最高 " + best;
+    artCount.textContent = n + " 笔";
+    poemEmpty.classList.toggle("is-hidden", n > 0);
+    linesEl.classList.toggle("is-hidden", n === 0);
+    artEmpty.classList.toggle("is-hidden", n > 0);
+    stripEl.classList.toggle("is-hidden", n === 0);
+  }
+
+  function addLine(text, ch, magic){
+    poemLines.push(text);
+    var li = document.createElement("li");
+    li.textContent = text;
+    if (magic) li.style.color = pal.accent;
+    linesEl.appendChild(li);
+
+    var tile = makeTile(ch, hashStr(ch));   // 同一个字，永远是同一幅小画
+    stripEl.appendChild(tile);
+
+    if (poemLines.length > best){
+      best = poemLines.length;
+      saveBest(best);
+    }
+    updateCounts();
+  }
+
+  function showOverlay(kind){
+    if (kind === "none"){
+      overlay.classList.add("is-hidden");
+      return;
+    }
+    overlay.classList.remove("is-hidden");
+    if (kind === "ready"){
+      ovTitle.textContent = "准备开始";
+      ovText.textContent = "按方向键开始，吃掉棋盘上的字";
+      ovScore.textContent = "";
+    } else if (kind === "paused"){
+      ovTitle.textContent = "已暂停";
+      ovText.textContent = "按空格键或点击继续游戏";
+      ovScore.textContent = "已得 " + poemLines.length + " 句";
+    } else if (kind === "over"){
+      ovTitle.textContent = "游戏结束";
+      ovText.textContent = crashKind === "wall" ? "撞到墙壁了" : crashKind === "self" ? "撞到自己了" : "棋盘写满了";
+      ovScore.textContent = "这一局没有字进诗里，再来一次吧";
+    }
+  }
+
+  function syncButtons(){
+    btnStart.disabled = state === "running";
+    btnStart.textContent = state === "paused" ? "继续游戏" : "开始游戏";
+  }
+
+  /* ===== 氛围切换 ===== */
+  function applyPalette(p){
+    var root = document.documentElement;
+    root.style.setProperty("--paper", p.paper);
+    root.style.setProperty("--board", p.board);
+    root.style.setProperty("--ink", p.ink);
+    root.style.setProperty("--ink-soft", p.inkSoft);
+    root.style.setProperty("--line", p.line);
+    root.style.setProperty("--accent", p.accent);
+    root.style.setProperty("--grid", p.grid);
+    root.style.setProperty("--snake", p.snake);
+    root.style.setProperty("--snake-head", p.snakeHead);
+  }
+
+  function setAtmo(next){
+    atmo = next;
+    pal = atmoPalette(theme.palette, atmo);
+    applyPalette(pal);
+    draw();
+  }
+
+  /* ===== 出字 ===== */
+  function occupied(){
+    var map = {};
+    var i;
+    for (i = 0; i < snake.length; i++) map[snake[i].x + "," + snake[i].y] = 1;
+    for (i = 0; i < tokens.length; i++) map[tokens[i].x + "," + tokens[i].y] = 1;
+    return map;
+  }
+
+  function pickChar(){
+    var used = tokens.map(function(t){ return t.ch; });
+    var magicPool = MAGIC_CHARS.filter(function(c){ return used.indexOf(c) < 0; });
+    var wordPool = theme.words
+      .map(function(w){ return w[0]; })
+      .filter(function(c){ return used.indexOf(c) < 0; });
+    var wantMagic = magicPool.length && (Math.random() < 0.30 || wordPool.length === 0);
+    var pool = wantMagic ? magicPool : wordPool;
+    if (!pool.length) pool = wordPool.length ? wordPool : magicPool;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  function lineFor(ch){
+    if (MAGIC[ch]) return MAGIC[ch].lines[Math.random() < 0.5 ? 0 : 1];
+    for (var i = 0; i < theme.words.length; i++){
+      var w = theme.words[i];
+      if (w[0] === ch) return w[Math.random() < 0.5 ? 1 : 2];
+    }
+    return ch;
+  }
+
+  function spawnToken(){
+    var map = occupied();
+    var free = [];
+    for (var y = 0; y < ROWS; y++){
+      for (var x = 0; x < COLS; x++){
+        if (!map[x + "," + y]) free.push({ x: x, y: y });
+      }
+    }
+    if (!free.length) return null;
+
+    var cell = free[Math.floor(Math.random() * free.length)];
+    var ch = pickChar();
+    var token = { ch: ch, x: cell.x, y: cell.y, magic: !!MAGIC[ch], line: lineFor(ch) };
+    tokens.push(token);
+    return token;
+  }
+
+  function tokenIndexAt(x, y){
+    for (var i = 0; i < tokens.length; i++){
+      if (tokens[i].x === x && tokens[i].y === y) return i;
+    }
+    return -1;
+  }
+
+  /* ===== 吃字 ===== */
+  function eat(x, y, token){
+    score++;
+    eatenWords.push(token.ch);
+    stepMs = stepForScore(score);
+
+    effects.push({ x: x, y: y, t0: performance.now(), color: pal.accent });
+
+    if (token.magic){
+      setAtmo(MAGIC[token.ch].atmo);
+    }
+    addLine(token.line, token.ch, token.magic);
+    spawnToken();
+  }
+
+  /* ===== 走一步 ===== */
+  function step(){
+    if (queue.length) dir = queue.shift();
+
+    var head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+    if (head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS){
+      gameOver(head, "wall");
+      return;
+    }
+
+    var ti = tokenIndexAt(head.x, head.y);
+    var willGrow = ti >= 0;
+    var body = willGrow ? snake : snake.slice(0, snake.length - 1);
+
+    for (var i = 0; i < body.length; i++){
+      if (body[i].x === head.x && body[i].y === head.y){
+        gameOver(head, "self");
+        return;
+      }
+    }
+
+    snake.unshift(head);
+
+    if (willGrow){
+      var token = tokens.splice(ti, 1)[0];
+      eat(head.x, head.y, token);
+      if (tokens.length < 3){
+        gameOver(head, "full");
+        return;
+      }
+    } else {
+      snake.pop();
+    }
+  }
+
+  var loop = function(t){
+    rafId = null;
+    if (state !== "running") return;
+
+    if (!lastT) lastT = t;
+    var dt = Math.min(t - lastT, 250);
+    lastT = t;
+    acc += dt;
+
+    while (acc >= stepMs && state === "running"){
+      acc -= stepMs;
+      step();
+    }
+
+    if (state === "running"){
+      draw();
+      rafId = requestAnimationFrame(loop);
+    }
+  };
+
+  function startLoop(){
+    acc = 0;
+    lastT = 0;
+    if (rafId == null) rafId = requestAnimationFrame(loop);
+  }
+
+  /* ===== 一局的起止 ===== */
+  function resetGame(){
+    snake = [
+      { x: 8, y: 11 },
+      { x: 7, y: 11 },
+      { x: 6, y: 11 }
+    ];
+    dir = { x: 1, y: 0 };
+    queue = [];
+    tokens = [];
+    score = 0;
+    stepMs = stepForScore(0);
+    crash = null;
+    crashKind = "";
+    effects = [];
+
+    poemLines = [];
+    eatenWords = [];
+    linesEl.innerHTML = "";
+    stripEl.innerHTML = "";
+    best = loadBest();
+
+    state = "ready";
+    setAtmo("day");
+
+    for (var i = 0; i < 3; i++) spawnToken();
+    updateCounts();
+    showOverlay("ready");
+    syncButtons();
+    draw();
+  }
+
+  function startGame(){
+    if (state === "over" || state === "ready") resetGame();
+    state = "running";
+    showOverlay("none");
+    syncButtons();
+    startLoop();
+  }
+
+  function restartGame(){
+    closeScroll();
+    resetGame();
+    state = "running";
+    showOverlay("none");
+    syncButtons();
+    startLoop();
+  }
+
+  function pauseGame(){
+    if (state !== "running") return;
+    state = "paused";
+    showOverlay("paused");
+    syncButtons();
+  }
+
+  function resumeGame(){
+    if (state !== "paused") return;
+    state = "running";
+    showOverlay("none");
+    syncButtons();
+    startLoop();
+  }
+
+  function gameOver(head, kind){
+    crash = head;
+    crashKind = kind;
+    state = "over";
+    if (rafId != null){ cancelAnimationFrame(rafId); rafId = null; }
+    draw();
+    syncButtons();
+
+    if (poemLines.length === 0){
+      showOverlay("over");
+      return;
+    }
+    showOverlay("none");
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(openScroll, reduceMotion ? 0 : 360);
+  }
+
+  /* ===== 展卷 ===== */
+  function openScroll(){
+    var n = poemLines.length;
+    var first = eatenWords[0] || "";
+    var last = eatenWords[n - 1] || "";
+    var title = n > 1 && first !== last ? "《" + first + "·" + last + "》" : "《" + first + "》";
+
+    finalTitle.textContent = title;
+    finalSub.textContent = theme.name + " · " + n + " 句 · " + ATMO_LABEL[atmo];
+    finalLines.textContent = "";
+    for (var i = 0; i < n; i++){
+      if (i) finalLines.appendChild(document.createElement("br"));
+      finalLines.appendChild(document.createTextNode(poemLines[i]));
+    }
+    finalSign.textContent = "你吃了 " + n + " 个字，它们成了这首诗，也成了这幅画。";
+    finalArt.src = theme.scroll;
+    finalArt.alt = theme.name + "长卷";
+
+    scrollView.hidden = false;
+    scrollPaper.scrollTop = 0;
+  }
+
+  function closeScroll(){
+    if (scrollTimer){ clearTimeout(scrollTimer); scrollTimer = null; }
+    scrollView.hidden = true;
+  }
+
+  /* ===== 主题 ===== */
+  function setTheme(key){
+    if (!THEMES[key] || key === themeKey) return;
+    themeKey = key;
+    theme = THEMES[key];
+    best = loadBest();
+    for (var i = 0; i < chips.length; i++){
+      chips[i].setAttribute("aria-pressed", chips[i].getAttribute("data-theme") === key ? "true" : "false");
+    }
+    closeScroll();
+    resetGame();
+  }
+
+  /* ===== 输入 ===== */
+  var KEYMAP = {
+    ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+    w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
+    W: [0, -1], S: [0, 1], A: [-1, 0], D: [1, 0]
+  };
+
+  function queueDir(nx, ny){
+    var last = queue.length ? queue[queue.length - 1] : dir;
+    if (nx === -last.x && ny === -last.y) return;
+    if (nx === last.x && ny === last.y) return;
+    if (queue.length >= 2) return;
+    queue.push({ x: nx, y: ny });
+  }
+
+  window.addEventListener("keydown", function(e){
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!scrollView.hidden){
+      if (e.key === "Escape"){ closeScroll(); }
+      return;
+    }
+
+    var move = KEYMAP[e.key];
+    if (move){
+      e.preventDefault();
+      if (state === "ready" || state === "paused") startGame();
+      if (state === "running") queueDir(move[0], move[1]);
+      return;
+    }
+
+    if (e.key === " " || e.code === "Space"){
+      e.preventDefault();
+      if (state === "running") pauseGame();
+      else if (state === "paused") resumeGame();
+      else if (state === "ready" || state === "over") startGame();
+      return;
+    }
+
+    if (e.key === "Enter"){
+      e.preventDefault();
+      if (state !== "running") startGame();
+    }
+  }, { passive: false });
+
+  var touchStart = null;
+  stage.addEventListener("pointerdown", function(e){
+    touchStart = { x: e.clientX, y: e.clientY };
+  });
+  stage.addEventListener("pointerup", function(e){
+    if (!touchStart) return;
+    var dx = e.clientX - touchStart.x;
+    var dy = e.clientY - touchStart.y;
+    touchStart = null;
+    if (Math.abs(dx) < 22 && Math.abs(dy) < 22) return;
+
+    if (Math.abs(dx) > Math.abs(dy)) queueDir(dx > 0 ? 1 : -1, 0);
+    else queueDir(0, dy > 0 ? 1 : -1);
+
+    if (state === "ready" || state === "paused") startGame();
+  });
+
+  btnStart.addEventListener("click", function(){
+    if (state === "paused") resumeGame();
+    else startGame();
+    canvas.focus({ preventScroll: true });
+  });
+
+  btnRestart.addEventListener("click", function(){
+    restartGame();
+    canvas.focus({ preventScroll: true });
+  });
+
+  btnAgain.addEventListener("click", function(){
+    restartGame();
+    canvas.focus({ preventScroll: true });
+  });
+
+  btnSwitch.addEventListener("click", function(){
+    var order = ["tang", "fairy", "sci"];
+    var next = order[(order.indexOf(themeKey) + 1) % order.length];
+    setTheme(next);
+    restartGame();
+    canvas.focus({ preventScroll: true });
+  });
+
+  for (var ci = 0; ci < chips.length; ci++){
+    chips[ci].addEventListener("click", function(e){
+      setTheme(e.currentTarget.getAttribute("data-theme"));
+    });
+  }
+
+  /* ===== 速度 ===== */
+  function setSpeed(key){
+    if (!SPEEDS[key]) key = "normal";
+    speedKey = key;
+    speedSet = SPEEDS[key];
+    for (var si = 0; si < speedBtns.length; si++){
+      speedBtns[si].setAttribute("aria-pressed",
+        speedBtns[si].getAttribute("data-speed") === key ? "true" : "false");
+    }
+    try { localStorage.setItem("poem-speed", key); } catch (e) {}
+    stepMs = stepForScore(score);
+  }
+
+  for (var bi = 0; bi < speedBtns.length; bi++){
+    speedBtns[bi].addEventListener("click", function(e){
+      setSpeed(e.currentTarget.getAttribute("data-speed"));
+      canvas.focus({ preventScroll: true });
+    });
+  }
+
+  var savedSpeed = "normal";
+  try { savedSpeed = localStorage.getItem("poem-speed") || "normal"; } catch (e) {}
+
+  scrollView.addEventListener("click", function(e){
+    if (e.target === scrollView) closeScroll();
+  });
+
+  /* ===== 启动 ===== */
+  fitCanvas();
+  applyPalette(pal);
+  setSpeed(savedSpeed);
+  resetGame();
+
+  window.addEventListener("resize", function(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    if (canvas.width !== Math.round(BOARD * dpr)){
+      fitCanvas();
+      draw();
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
